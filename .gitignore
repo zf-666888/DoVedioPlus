@@ -1,4 +1,29 @@
 .idea/
 *.iml
- 
 .claude/
+
+# 环境变量 & 密钥
+.env
+*.env.local
+application-local.properties
+
+# 编译产物
+server/target/
+server/native/build/
+server/native/install/
+*.class
+*.jar
+*.war
+
+# 依赖
+node_modules/
+.svelte-kit/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# IDE
+.vscode/settings.json

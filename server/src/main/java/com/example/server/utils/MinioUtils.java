@@ -1,8 +1,10 @@
 package com.example.server.utils;
 
+import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.http.Method;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -10,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class MinioUtils {
@@ -24,10 +27,9 @@ public class MinioUtils {
     private String endpoint;
 
     /**
-     * 上传文件并返回访问 URL
+     * 上传文件，返回对象名（不再直接返回公开 URL）
      */
     public String uploadFile(MultipartFile file) throws Exception {
-        // 1. 生成新文件名 (UUID防止重名)
         String originalFilename = file.getOriginalFilename();
         String suffix = "";
         if (originalFilename != null && originalFilename.contains(".")) {
@@ -35,7 +37,6 @@ public class MinioUtils {
         }
         String newFilename = UUID.randomUUID().toString() + suffix;
 
-        // 2. 上传到 MinIO
         try (InputStream inputStream = file.getInputStream()) {
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -47,48 +48,67 @@ public class MinioUtils {
             );
         }
 
-        // 3. 拼接返回 Public 访问地址
         return endpoint + "/" + bucketName + "/" + newFilename;
     }
 
     /**
-     * 【新增】从 MinIO 删除文件
-     * @param fileUrl 文件的完整 URL
+     * 生成预签名下载 URL（有效期 7 天）
+     */
+    public String getPresignedUrl(String objectName) {
+        try {
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .method(Method.GET)
+                            .expiry(7, TimeUnit.DAYS)
+                            .build()
+            );
+        } catch (Exception e) {
+            return endpoint + "/" + bucketName + "/" + objectName;
+        }
+    }
+
+    /**
+     * 从完整 URL 生成预签名下载链接
+     */
+    public String getPresignedUrlFromFileUrl(String fileUrl) {
+        if (fileUrl == null || !fileUrl.startsWith("http")) return fileUrl;
+        String objectName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+        return getPresignedUrl(objectName);
+    }
+
+    /**
+     * 从 MinIO 删除文件
      */
     public void removeFile(String fileUrl) {
         try {
-            // 解析文件名
             String objectName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
-
-            // 调用 MinIO 删除
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucketName)
                             .object(objectName)
                             .build()
             );
-
-            System.out.println(" MinIO 文件已删除: " + objectName);
         } catch (Exception e) {
-            System.err.println(" MinIO 删除失败: " + e.getMessage());
+            System.err.println("MinIO 删除失败: " + e.getMessage());
         }
     }
 
     /**
-     * 【新增】上传本地 File 对象到 MinIO
+     * 上传本地 File 对象到 MinIO
      */
     public String uploadLocalFile(java.io.File file) throws Exception {
         try (java.io.FileInputStream inputStream = new java.io.FileInputStream(file)) {
             minioClient.putObject(
-                    io.minio.PutObjectArgs.builder()
+                    PutObjectArgs.builder()
                             .bucket(bucketName)
-                            .object(file.getName()) // 文件名已经包含 UUID
+                            .object(file.getName())
                             .stream(inputStream, file.length(), -1)
-                            .contentType("video/mp4") // 默认当 mp4 处理
+                            .contentType("video/mp4")
                             .build()
             );
         }
-
         return endpoint + "/" + bucketName + "/" + file.getName();
     }
 }

@@ -9,6 +9,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
     libavformat libavcodec libavutil libswscale libswresample
 )
+pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 
 find_package(JNI REQUIRED)
 find_package(nlohmann_json 3.2.0 REQUIRED)
@@ -38,6 +39,7 @@ target_include_directories(dovedioplus PRIVATE
 target_link_libraries(dovedioplus PRIVATE
     ${FFMPEG_LIBRARIES}
     ${JNI_LIBRARIES}
+    ${CURL_LIBRARIES}
     nlohmann_json::nlohmann_json
 )
 
